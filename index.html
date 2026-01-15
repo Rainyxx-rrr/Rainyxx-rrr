@@ -1,10 +1,11 @@
 
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>EVE Studio - v12.2 PadFix</title>
+    <title>EVE Studio - v12.3 DecoFix</title>
     <style>
         :root { 
             --bg-body: #f4f6f9; 
@@ -685,7 +686,11 @@
         <div class="tab-content" id="tab6">
             <div class="control-group">
                 <h2>多层装饰系统</h2>
-                <div style="font-size:11px; color:#666; margin-bottom:15px;">添加圆形或图片。图片支持移动、大小和透明度调节。</div>
+                <div style="font-size:11px; color:#666; margin-bottom:15px;">
+                    添加圆形或图片作为背景层。
+                    <br><strong>% 相对定位：</strong>随气泡拉伸 (适合居中)
+                    <br><strong>px 绝对定位：</strong>固定在角落 (适合角标，不会消失)
+                </div>
                 
                 <button class="add-layer-btn" onclick="addDecorationLayer()">+ 添加装饰图层</button>
                 <div class="layer-list" id="layerList"></div>
@@ -761,7 +766,7 @@
                 </div>
                 <div class="chat-row right sim-row-right"> 
                     <div class="chat-avatar" style="visibility:hidden"></div>
-                    <div class="preview-bubble sim-bubble-right">这是一条超级超级超级超级超级超级超级长的消息，可以在质感调节气泡在屏幕中的占比。</div>
+                    <div class="preview-bubble sim-bubble-right">Min-Width 修复了堆叠问题。当气泡变大时，绝对定位的装饰不会消失。</div>
                 </div>
                 <div class="chat-row left sim-row-left">
                     <div class="chat-avatar"></div>
@@ -872,7 +877,9 @@ function addDecorationLayer() {
         x: 50,
         y: 50,
         opacity: 1,
-        url: ''
+        url: '',
+        posMode: 'percent', // 'percent' or 'absolute'
+        anchor: 'tl' // tl, tr, bl, br, center
     });
     renderDecorationList();
     update();
@@ -886,8 +893,7 @@ function removeDecoration(index) {
 
 function updateDecoration(index, key, val) {
     decorations[index][key] = val;
-    // Special handling for re-rendering if type changes to image
-    if (key === 'type') renderDecorationList();
+    if (key === 'type' || key === 'posMode') renderDecorationList();
     update();
 }
 
@@ -935,23 +941,52 @@ function renderDecorationList() {
             `;
         }
         
-        // Controls for Size, X, Y
+        // Position Mode Selector
+        let posControls = '';
+        if (layer.posMode === 'absolute') {
+            posControls = `
+                <select onchange="updateDecoration(${i}, 'anchor', this.value)" style="flex:1;">
+                    <option value="tl" ${layer.anchor==='tl'?'selected':''}>左上 (Top-Left)</option>
+                    <option value="tr" ${layer.anchor==='tr'?'selected':''}>右上 (Top-Right)</option>
+                    <option value="bl" ${layer.anchor==='bl'?'selected':''}>左下 (Bottom-Left)</option>
+                    <option value="br" ${layer.anchor==='br'?'selected':''}>右下 (Bottom-Right)</option>
+                    <option value="center" ${layer.anchor==='center'?'selected':''}>中心 (Center)</option>
+                </select>
+            `;
+        }
+
+        const isAbs = layer.posMode === 'absolute';
+        const rangeMin = isAbs ? -100 : -50;
+        const rangeMax = isAbs ? 200 : 150;
+        const unit = isAbs ? 'px' : '%';
+        const labelX = isAbs ? 'X 偏移' : 'X 位置';
+        const labelY = isAbs ? 'Y 偏移' : 'Y 位置';
+
         controls += `
              <div style="margin-top:8px;">
-                <div style="display:flex; gap:5px; align-items:center;">
+                <div class="label-row" style="justify-content:flex-start; gap:10px;">
+                    <span style="font-size:10px;">定位模式:</span>
+                    <label style="font-size:10px;"><input type="radio" name="dm${i}" onchange="updateDecoration(${i}, 'posMode', 'percent')" ${!isAbs?'checked':''}> % 相对</label>
+                    <label style="font-size:10px;"><input type="radio" name="dm${i}" onchange="updateDecoration(${i}, 'posMode', 'absolute')" ${isAbs?'checked':''}> px 绝对</label>
+                </div>
+                ${isAbs ? `<div class="label-row" style="margin-top:4px;">${posControls}</div>` : ''}
+
+                <div style="display:flex; gap:5px; align-items:center; margin-top:8px;">
                     <span style="font-size:10px; width:25px;">大小</span>
                     <input type="range" min="5" max="300" value="${layer.size}" oninput="updateDecoration(${i}, 'size', this.value)" style="flex:1">
                     <span style="font-size:10px; color:#999; width:20px;">px</span>
                 </div>
                 <div style="display:flex; gap:5px; align-items:center; margin-top:5px;">
-                    <span style="font-size:10px; width:10px;">X</span>
-                    <input type="range" min="-50" max="150" value="${layer.x}" oninput="updateDecoration(${i}, 'x', this.value); this.nextElementSibling.value=this.value" style="flex:1">
+                    <span style="font-size:10px; width:25px;">${isAbs?'X':'X'}</span>
+                    <input type="range" min="${rangeMin}" max="${rangeMax}" value="${layer.x}" oninput="updateDecoration(${i}, 'x', this.value); this.nextElementSibling.value=this.value" style="flex:1">
                     <input type="number" class="num-input" value="${layer.x}" oninput="updateDecoration(${i}, 'x', this.value); this.previousElementSibling.value=this.value">
+                    <span style="font-size:10px; width:15px; text-align:right;">${unit}</span>
                 </div>
                 <div style="display:flex; gap:5px; align-items:center; margin-top:4px;">
-                    <span style="font-size:10px; width:10px;">Y</span>
-                    <input type="range" min="-50" max="150" value="${layer.y}" oninput="updateDecoration(${i}, 'y', this.value); this.nextElementSibling.value=this.value" style="flex:1">
+                    <span style="font-size:10px; width:25px;">${isAbs?'Y':'Y'}</span>
+                    <input type="range" min="${rangeMin}" max="${rangeMax}" value="${layer.y}" oninput="updateDecoration(${i}, 'y', this.value); this.nextElementSibling.value=this.value" style="flex:1">
                     <input type="number" class="num-input" value="${layer.y}" oninput="updateDecoration(${i}, 'y', this.value); this.previousElementSibling.value=this.value">
+                    <span style="font-size:10px; width:15px; text-align:right;">${unit}</span>
                 </div>
             </div>
         `;
@@ -1149,10 +1184,12 @@ function loadState() {
         }
         if (state['decorations']) {
             decorations = state['decorations'];
+            // Migration fix for older saves without posMode
+            decorations.forEach(d => { if(!d.posMode) d.posMode = 'percent'; });
             renderDecorationList();
         }
         updateLock();
-        togglePadLock(); // Sync layout
+        togglePadLock(); 
         
         // Force sync for old saves
         if(document.getElementById('padLock').checked) {
@@ -1337,38 +1374,68 @@ function update() {
         clips.push("padding-box"); 
     }
     
-    // Decorations Layer - FIXED LOGIC
+    // Decorations Layer - UPDATED LOGIC (Anchor support)
     decorations.forEach(dec => {
         const op = dec.opacity;
-        const x = dec.x + '%';
-        const y = dec.y + '%';
-        
+        // Determine Position String
+        let posStr = 'center';
+        if (!dec.posMode || dec.posMode === 'percent') {
+            // Relative (%)
+            posStr = `${dec.x}% ${dec.y}%`;
+        } else {
+            // Absolute (px) with Anchor
+            const dx = dec.x + 'px';
+            const dy = dec.y + 'px';
+            const anc = dec.anchor || 'tl';
+            
+            if (anc === 'tl') posStr = `left ${dx} top ${dy}`;
+            else if (anc === 'tr') posStr = `right ${dx} top ${dy}`; // Note: user might want negative for offset out, but sliders allow neg
+            else if (anc === 'bl') posStr = `left ${dx} bottom ${dy}`;
+            else if (anc === 'br') posStr = `right ${dx} bottom ${dy}`;
+            else if (anc === 'center') posStr = `calc(50% + ${dx}) calc(50% + ${dy})`;
+        }
+
         if (dec.type === 'circle') {
             const sz = dec.size + 'px';
-            bgImages.push(`radial-gradient(circle at ${x} ${y}, ${hexToRgba(dec.color, op)} 0%, transparent ${sz})`);
-            bgPositions.push('0 0'); // Gradient handles position internally
-            bgSizes.push('100% 100%');
+            bgImages.push(`radial-gradient(circle at ${posStr.includes('calc') || dec.posMode==='absolute' ? posStr : dec.x+'% '+dec.y+'%'}, ${hexToRgba(dec.color, op)} 0%, transparent ${sz})`);
+            // Gradient syntax puts position inside.
+            // For external pos:
+            if(dec.posMode === 'absolute') {
+                 // Complex case: Radial gradient internal positioning syntax is tricky with calc.
+                 // Fallback: We use radial-gradient without position, and set background-position.
+                 // BUT radial-gradient(circle, ...) centers it in the "box".
+                 // Simpler: Use background-position for the gradient layer.
+                 // We need to redefine the gradient string to NOT include position, and let CSS background-position handle it.
+                 // However, standard radial-gradient centers in the "image box".
+                 // Hack: standard radial gradient with position INSIDE is easier for browsers?
+                 // Let's stick to standard background-position logic for consistency.
+                 bgImages.push(`radial-gradient(closest-side, ${hexToRgba(dec.color, op)} 0%, transparent 100%)`);
+            } else {
+                 // Keep old logic for percent
+                 bgImages.pop(); // remove prev
+                 bgImages.push(`radial-gradient(circle at ${dec.x}% ${dec.y}%, ${hexToRgba(dec.color, op)} 0%, transparent ${dec.size}px)`);
+                 posStr = '0 0'; // Handled inside
+            }
+            
+            if (dec.posMode === 'absolute') {
+                 bgPositions.push(posStr);
+                 bgSizes.push(`${dec.size*2}px ${dec.size*2}px`); // Gradient size needs to be box size
+            } else {
+                 bgPositions.push('0 0');
+                 bgSizes.push('100% 100%');
+            }
             bgRepeats.push('no-repeat');
             clips.push("padding-box");
         } else if (dec.type === 'image' && dec.url) {
-            // Image with opacity using cross-fade
-            let rawUrl = dec.url.trim();
-            // 移除可能意外输入的引号，清理首尾
-            rawUrl = rawUrl.replace(/^['"]|['"]$/g, '');
-            
-            let finalUrl = rawUrl;
-            // 如果不是以 url( 开头，且不是 data:image，则包裹
-            if (!/^\s*url\s*\(/i.test(rawUrl)) {
-                finalUrl = `url('${rawUrl}')`;
-            }
+            let rawUrl = dec.url.trim().replace(/^['"]|['"]$/g, '');
+            let finalUrl = !/^\s*url\s*\(/i.test(rawUrl) ? `url('${rawUrl}')` : rawUrl;
 
             let imgStr = finalUrl;
             if (op < 1) {
-                // Cross fade with transparent: 80% opacity means 20% transparent
                 imgStr = `-webkit-cross-fade(${finalUrl}, transparent, ${100 - op * 100}%)`;
             }
             bgImages.push(imgStr);
-            bgPositions.push(`${x} ${y}`);
+            bgPositions.push(posStr);
             bgSizes.push(`${dec.size}px auto`);
             bgRepeats.push('no-repeat');
             clips.push("padding-box"); 
